@@ -16,15 +16,54 @@ namespace PicoBridge.Types;
 /// </summary>
 public sealed class PicoFaceTrackingDatagram
 {
+    private readonly byte[] buffer = new byte[8];
+
     public PicoFaceTrackingDatagram(Stream data)
     {
-        // TODO
-        
+        Timestamp = ReadLong(data);
+        for (var i = 0; i < 72; i++)
+        {
+            BlendShapeWeight[i] = ReadFloat(data);
+        }
+
+        for (var i = 0; i < 10; i++)
+        {
+            VideoInputValidity[i] = ReadFloat(data);
+        }
+
+        LaughingProbability = ReadFloat(data);
+
+        for (var i = 0; i < 10; i++)
+        {
+            EmotionProbability[i] = ReadFloat(data);
+        }
+
+        data.Seek(128 * 4, SeekOrigin.Current); // discard reserved section
     }
 
-    public long Timestamp { get; } = 0;
+    public long Timestamp { get; }
     public float[] BlendShapeWeight { get; } = new float[72];
-    public float LaughingProbability { get; } = 0;
+    public float LaughingProbability { get; }
     public float[] VideoInputValidity { get; } = new float[10];
     public float[] EmotionProbability { get; } = new float[10];
+
+    private long ReadLong(Stream data)
+    {
+        if (data.Read(buffer, 0, 8) != 8)
+        {
+            throw new InvalidDataException("Datagram too short");
+        }
+
+        return BitConverter.ToInt64(buffer);
+    }
+
+    private float ReadFloat(Stream data)
+    {
+        if (data.Read(buffer, 0, 4) != 4)
+        {
+            throw new InvalidDataException("Datagram too short");
+        }
+
+        return BitConverter.ToSingle(buffer);
+    }
 }

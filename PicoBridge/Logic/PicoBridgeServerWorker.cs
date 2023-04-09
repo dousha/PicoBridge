@@ -6,52 +6,91 @@ namespace PicoBridge.Logic;
 
 public class PicoBridgeServerWorker
 {
+    public delegate void ConnectEventHandler(object sender);
+
+    public delegate void DatagramEventHandler(object sender, PicoFaceTrackingDatagram datagram);
+
+    public delegate void DisconnectEventHandler(object sender);
+
+    private const int PicoDatagramSize = 892;
+
+    private readonly CancellationTokenSource cts;
+    private readonly int port;
+    private readonly Semaphore sem = new(1, 1);
+    private DateTime connectionEstablishTime = DateTime.UnixEpoch;
+    private DateTime lastActivityTime = DateTime.UnixEpoch;
+
     internal PicoBridgeServerWorker(int port)
     {
-        _cts = new CancellationTokenSource();
-        _port = port;
-        _receiveStream = new MemoryStream(_receiveBuffer);
+        cts = new CancellationTokenSource();
+        this.port = port;
     }
 
     public void Start()
     {
-        ThreadPool.QueueUserWorkItem(Work, _cts.Token);
+        ThreadPool.QueueUserWorkItem(Work, cts.Token);
     }
 
     public void Stop()
     {
-        _cts.Cancel();
+        cts.Cancel();
     }
-
-    public delegate void ConnectEventHandler(object sender);
 
     public event ConnectEventHandler? Connect;
 
-    public delegate void DisconnectEventHandler(object sender);
-
     public event DisconnectEventHandler? Disconnect;
-
-    public delegate void DatagramEventHandler(object sender, PicoFaceTrackingDatagram datagram);
 
     public event DatagramEventHandler? Data;
 
+    private void OnDatagram(IAsyncResult x)
+    {
+        var state = (ServerWorkerState) x.AsyncState!;
+        var client = state.Client;
+        var endpoint = state.EndPoint;
+        var data = client.EndReceive(x, ref endpoint);
+        if (data.Length >= PicoDatagramSize)
+        {
+            lastActivityTime = DateTime.Now;
+            if (connectionEstablishTime == DateTime.UnixEpoch)
+            {
+                connectionEstablishTime = DateTime.Now;
+                Connect?.Invoke(this);
+            }
+
+            var datagram = new PicoFaceTrackingDatagram(new MemoryStream(data));
+            Data?.Invoke(this, datagram);
+        }
+
+        sem.Release();
+    }
+
     private void Work(object? obj)
     {
-        var token = (CancellationToken)obj!;
-        var listener = new UdpClient(_port);
-        var endpoint = new IPEndPoint(IPAddress.Any, _port);
+        var token = (CancellationToken) obj!;
+        var listener = new UdpClient(port);
+        var endpoint = new IPEndPoint(IPAddress.Any, port);
+        var state = new ServerWorkerState()
+        {
+            EndPoint = endpoint,
+            Client = listener
+        };
 
         try
         {
             while (!token.IsCancellationRequested)
             {
-                var data = listener.Receive(ref endpoint);
-                _receiveStream.Write(data);
-                while (_receiveStream.Length >= PicoDatagramSize)
+                if (sem.WaitOne(500))
                 {
-                    var datagram = new PicoFaceTrackingDatagram(_receiveStream);
-                    Data?.Invoke(this, datagram);
+                    listener.BeginReceive(OnDatagram, state);
                 }
+
+                if (lastActivityTime == DateTime.UnixEpoch
+                    || DateTime.Now - lastActivityTime <= TimeSpan.FromSeconds(5)) continue;
+
+                // timeout, reset state
+                lastActivityTime = DateTime.UnixEpoch;
+                connectionEstablishTime = DateTime.UnixEpoch;
+                Disconnect?.Invoke(this);
             }
         }
         finally
@@ -59,11 +98,4 @@ public class PicoBridgeServerWorker
             listener.Close();
         }
     }
-
-    private readonly CancellationTokenSource _cts;
-    private readonly int _port;
-    private readonly MemoryStream _receiveStream;
-    private readonly byte[] _receiveBuffer = new byte[2048];
-
-    private const int PicoDatagramSize = 892;
 }
