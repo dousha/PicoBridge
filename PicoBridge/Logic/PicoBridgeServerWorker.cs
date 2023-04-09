@@ -17,6 +17,8 @@ public class PicoBridgeServerWorker
     private readonly CancellationTokenSource cts;
     private readonly int port;
     private readonly Semaphore sem = new(1, 1);
+
+    private readonly Thread thread;
     private DateTime connectionEstablishTime = DateTime.UnixEpoch;
     private DateTime lastActivityTime = DateTime.UnixEpoch;
 
@@ -24,16 +26,32 @@ public class PicoBridgeServerWorker
     {
         cts = new CancellationTokenSource();
         this.port = port;
+        thread = new Thread(() =>
+        {
+            try
+            {
+                Work(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
     }
 
     public void Start()
     {
-        ThreadPool.QueueUserWorkItem(Work, cts.Token);
+        thread.Start();
     }
 
     public void Stop()
     {
         cts.Cancel();
+        thread.Join();
+    }
+
+    public void Join()
+    {
+        thread.Join();
     }
 
     public event ConnectEventHandler? Connect;
@@ -64,9 +82,8 @@ public class PicoBridgeServerWorker
         sem.Release();
     }
 
-    private void Work(object? obj)
+    private void Work(CancellationToken token)
     {
-        var token = (CancellationToken) obj!;
         var listener = new UdpClient(port);
         var endpoint = new IPEndPoint(IPAddress.Any, port);
         var state = new ServerWorkerState()
