@@ -51,7 +51,6 @@ public class PicoBridgeServer
 
     private static bool IsUdpPortFree(int port)
     {
-        IPEndPoint[] endPoints;
         var properties = IPGlobalProperties.GetIPGlobalProperties();
         var endpoints = properties.GetActiveUdpListeners();
         return endpoints.All(it => it.Port != port);
