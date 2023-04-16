@@ -1,4 +1,5 @@
-﻿using System.Net.NetworkInformation;
+﻿using System.Linq;
+using System.Net.NetworkInformation;
 using PicoBridge.Exceptions;
 using PicoBridge.Logic;
 using PicoBridge.Types;

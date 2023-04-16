@@ -1,3 +1,5 @@
+using System;
+
 namespace PicoBridge.Exceptions;
 
 public class NetworkException : Exception

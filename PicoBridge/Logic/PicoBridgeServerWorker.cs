@@ -1,5 +1,8 @@
+using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using PicoBridge.Types;
 
 namespace PicoBridge.Logic;
@@ -19,8 +22,8 @@ public class PicoBridgeServerWorker
     private readonly Semaphore sem = new(1, 1);
 
     private readonly Thread thread;
-    private DateTime connectionEstablishTime = DateTime.UnixEpoch;
-    private DateTime lastActivityTime = DateTime.UnixEpoch;
+    private DateTime connectionEstablishTime = DateTime.MinValue;
+    private DateTime lastActivityTime = DateTime.MinValue;
 
     internal PicoBridgeServerWorker(int port)
     {
@@ -69,7 +72,7 @@ public class PicoBridgeServerWorker
         if (data.Length >= PicoDatagramSize)
         {
             lastActivityTime = DateTime.Now;
-            if (connectionEstablishTime == DateTime.UnixEpoch)
+            if (connectionEstablishTime == DateTime.MinValue)
             {
                 connectionEstablishTime = DateTime.Now;
                 Connect?.Invoke(this);
@@ -101,12 +104,12 @@ public class PicoBridgeServerWorker
                     listener.BeginReceive(OnDatagram, state);
                 }
 
-                if (lastActivityTime == DateTime.UnixEpoch
+                if (lastActivityTime == DateTime.MinValue
                     || DateTime.Now - lastActivityTime <= TimeSpan.FromSeconds(5)) continue;
 
                 // timeout, reset state
-                lastActivityTime = DateTime.UnixEpoch;
-                connectionEstablishTime = DateTime.UnixEpoch;
+                lastActivityTime = DateTime.MinValue;
+                connectionEstablishTime = DateTime.MinValue;
                 Disconnect?.Invoke(this);
             }
         }
