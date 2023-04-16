@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using PicoBridge;
 using PicoBridge.Types;
@@ -29,6 +28,7 @@ public static class TrackingData
             external[PicoBlendShapeWeight.EyeSquintRight]);
         data.Left.Widen = external[PicoBlendShapeWeight.EyeWideLeft];
         data.Right.Widen = external[PicoBlendShapeWeight.EyeWideRight];
+        data.Combined.Look = new Vector2(external.CombinedYaw, external.CombinedPitch);
     }
 
     public static void Update(ref LipTrackingData data, PicoFaceTrackingDatagram external)
@@ -80,10 +80,9 @@ public static class TrackingData
             {LipShape_v2.TongueDownRightMorph, 0.0f}
         };
 
-        for (var i = 0; i < SRanipal_Lip_v2.WeightingCount; i++)
+        foreach (var keyValuePair in lipShapes)
         {
-            // FIXME: might cause index out of bounds here
-            data.LatestShapes[i] = lipShapes.Values.ElementAt(i);
+            data.LatestShapes[(int) keyValuePair.Key] = keyValuePair.Value;
         }
     }
 
