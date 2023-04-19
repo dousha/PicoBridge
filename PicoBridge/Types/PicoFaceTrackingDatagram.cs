@@ -67,20 +67,6 @@ public sealed class PicoFaceTrackingDatagram
     public float[] VideoInputValidity { get; } = new float[10];
     public float[] EmotionProbability { get; } = new float[10];
 
-    public float LeftEyeYaw => this[PicoBlendShapeWeight.EyeLookInLeft] - this[PicoBlendShapeWeight.EyeLookOutLeft];
-
-    public float RightEyeYaw => this[PicoBlendShapeWeight.EyeLookOutRight] - this[PicoBlendShapeWeight.EyeLookInRight];
-
-    public float LeftEyePitch => this[PicoBlendShapeWeight.EyeLookUpLeft] - this[PicoBlendShapeWeight.EyeLookDownLeft];
-
-    public float RightEyePitch =>
-        this[PicoBlendShapeWeight.EyeLookUpRight] - this[PicoBlendShapeWeight.EyeLookDownRight];
-
-    // FIXME: use correct combination calculation
-    public float CombinedYaw => (LeftEyeYaw + RightEyeYaw) / 2;
-
-    public float CombinedPitch => (LeftEyePitch + RightEyePitch) / 2;
-
     public float this[PicoBlendShapeWeight key] => BlendShapeWeight[(int) key];
 
     private long ReadLong(Stream data)

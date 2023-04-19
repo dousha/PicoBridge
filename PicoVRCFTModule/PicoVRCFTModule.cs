@@ -11,24 +11,99 @@ namespace PicoVRCFTModule;
 
 public static class TrackingData
 {
-    private static float ape(float jawOpen, float mouthClose) =>
+    private const float EyeCloseThreshold = 0.25f;
+    private const float EyeWidenThreshold = 0.98f;
+
+    private static int logCounter = 0;
+
+    private static float Ape(float jawOpen, float mouthClose) =>
         (0.05f + jawOpen) * (0.05f + mouthClose) * (0.05f + mouthClose);
 
-    private static float eyeOpenness(float blink, float squint) => (float) (Math.Pow(0.05 + blink, 6) + squint);
+    private static float EyeOpenness(float blink, float squint) => 1.0f - Math.Max(0, Math.Min(1, blink)) +
+                                                                   (float) (blink * (2f * squint) /
+                                                                            Math.Pow(2f, 2f * squint));
+
+    private static float Trigger(float input, float lowerBound, float trigger, float upperBound)
+    {
+        if (input < trigger)
+        {
+            if (input < lowerBound)
+            {
+                return 0.0f;
+            }
+
+            return input / (trigger - lowerBound) / 2;
+        }
+        else
+        {
+            if (input > upperBound)
+            {
+                return 1.0f;
+            }
+
+            return 0.5f + (input - trigger) / (upperBound - trigger) / 2;
+        }
+    }
+
+    private static float Clamp(float input, float lowerBound, float upperBound) =>
+        Math.Min(Math.Max(lowerBound, input), upperBound);
+
+    private static void UpdateEye(ref Eye eye, float openness)
+    {
+        switch (openness)
+        {
+            case >= EyeWidenThreshold:
+                eye.Openness = 1.0f;
+                eye.Squeeze = 0;
+                eye.Widen = (openness - EyeWidenThreshold) / (1 - EyeWidenThreshold);
+                break;
+            case <= EyeCloseThreshold:
+                eye.Openness = 0.0f;
+                eye.Squeeze = (openness / -EyeCloseThreshold) + 1;
+                eye.Widen = 0;
+                break;
+            default:
+                eye.Openness = openness;
+                eye.Squeeze = 0;
+                eye.Widen = 0;
+                break;
+        }
+    }
 
     public static void Update(ref EyeTrackingData data, PicoFaceTrackingDatagram external)
     {
         data.SupportsImage = false;
 
-        data.Left.Look = new Vector2(external.LeftEyeYaw, external.LeftEyePitch);
-        data.Right.Look = new Vector2(external.RightEyeYaw, external.RightEyePitch);
-        data.Left.Openness = 1 - eyeOpenness(external[PicoBlendShapeWeight.EyeBlinkLeft],
+        // Note: I tried to fix it into calculated properties but the sign is always incorrect for some reason
+        var leftYaw = Clamp(external[PicoBlendShapeWeight.EyeLookInLeft] -
+                            external[PicoBlendShapeWeight.EyeLookOutLeft], -0.8f, 0.8f);
+        var leftPitch = external[PicoBlendShapeWeight.EyeLookUpLeft] - external[PicoBlendShapeWeight.EyeLookDownLeft];
+        var rightYaw =
+            Clamp(external[PicoBlendShapeWeight.EyeLookOutRight] - external[PicoBlendShapeWeight.EyeLookInRight], -0.8f,
+                0.8f);
+        var rightPitch = external[PicoBlendShapeWeight.EyeLookUpRight] -
+                         external[PicoBlendShapeWeight.EyeLookDownRight];
+        var averageYaw = Clamp((leftYaw + rightYaw) / 2, -0.8f, 0.8f);
+        var averagePitch = Clamp((leftPitch + rightPitch) / 2, -0.8f, 0.8f);
+
+        var leftOpenness = EyeOpenness(external[PicoBlendShapeWeight.EyeBlinkLeft],
             external[PicoBlendShapeWeight.EyeSquintLeft]);
-        data.Right.Openness = 1 - eyeOpenness(external[PicoBlendShapeWeight.EyeBlinkRight],
+        var rightOpenness = EyeOpenness(external[PicoBlendShapeWeight.EyeBlinkRight],
             external[PicoBlendShapeWeight.EyeSquintRight]);
-        data.Left.Widen = external[PicoBlendShapeWeight.EyeWideLeft];
-        data.Right.Widen = external[PicoBlendShapeWeight.EyeWideRight];
-        data.Combined.Look = new Vector2(external.CombinedYaw, external.CombinedPitch);
+        var averageOpenness = Clamp((leftOpenness + rightOpenness) / 2, 0, 1.0f);
+
+        data.Left.Look = new Vector2(leftYaw, leftPitch);
+        data.Right.Look = new Vector2(rightYaw, rightPitch);
+        data.Combined.Look = new Vector2(averageYaw, averagePitch);
+
+        UpdateEye(ref data.Left, leftOpenness);
+        UpdateEye(ref data.Right, rightOpenness);
+        UpdateEye(ref data.Combined, averageOpenness);
+
+        if (++logCounter < 10) return;
+
+        Logger.Msg($"Lo={leftOpenness},Ro={rightOpenness},Vo={averageOpenness}");
+        logCounter = 0;
     }
 
     public static void Update(ref LipTrackingData data, PicoFaceTrackingDatagram external)
@@ -41,7 +116,7 @@ public static class TrackingData
             {LipShape_v2.JawForward, external[PicoBlendShapeWeight.JawForward]},
             {
                 LipShape_v2.MouthApeShape,
-                ape(external[PicoBlendShapeWeight.JawOpen], external[PicoBlendShapeWeight.MouthClose])
+                Ape(external[PicoBlendShapeWeight.JawOpen], external[PicoBlendShapeWeight.MouthClose])
             },
             {LipShape_v2.MouthUpperLeft, external[PicoBlendShapeWeight.MouthUpperUpLeft]},
             {LipShape_v2.MouthUpperRight, external[PicoBlendShapeWeight.MouthUpperUpRight]},

@@ -4,6 +4,7 @@
     <option name="locations">
       <list>
         <option value="$PROJECT_DIR$/PicoBridgeConsole/bin/Debug/net6.0/publish" />
+        <option value="$PROJECT_DIR$/PicoVRCFTModule/bin/Release/net6.0/publish" />
       </list>
     </option>
   </component>
