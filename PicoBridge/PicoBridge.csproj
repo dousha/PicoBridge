@@ -3,9 +3,9 @@
     <PropertyGroup>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <TargetFramework>net48</TargetFramework>
         <LangVersion>default</LangVersion>
         <AutoGenerateBindingRedirects>True</AutoGenerateBindingRedirects>
+        <TargetFrameworks>net48;net7.0</TargetFrameworks>
     </PropertyGroup>
 
 </Project>
