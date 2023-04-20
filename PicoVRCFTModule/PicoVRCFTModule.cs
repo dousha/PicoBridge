@@ -15,8 +15,6 @@ public static class TrackingData
     private const float EyeWidenThreshold = 0.3f;
     private const float EyeHyperWidenThreshold = 0.5f;
 
-    private static int logCounter = 0;
-
     private static float Ape(float jawOpen, float mouthClose) =>
         (0.05f + jawOpen) * (0.05f + mouthClose) * (0.05f + mouthClose);
 
@@ -107,17 +105,13 @@ public static class TrackingData
         UpdateEye(ref data.Right, rightOpenness, rightWiden);
         UpdateEye(ref data.Combined, averageOpenness, averageWiden);
 
+        // XXX: maybe, linear interpolation?
         data.EyesDilation = averageWiden switch
         {
             >= EyeHyperWidenThreshold => 0.2f,
             >= EyeWidenThreshold => 0.4f,
             _ => 0.6f
         };
-
-        if (++logCounter < 10) return;
-
-        Logger.Msg($"Lo={leftOpenness},Lw={leftWiden},Ed={data.EyesDilation}");
-        logCounter = 0;
     }
 
     public static void Update(ref LipTrackingData data, PicoFaceTrackingDatagram external)
