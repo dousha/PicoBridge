@@ -5,3 +5,5 @@ library/
 riderModule.iml
 /_ReSharper.Caches/
 .DS_Store
+*.user
+/.vs/
