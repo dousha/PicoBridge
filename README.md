@@ -4,6 +4,8 @@ A C# library for parsing FT data from PICO 4 Pro.
 
 ## PicoVRCFTModule - PICO 4 Pro Module for VRCFaceTracking 4.0
 
+Note: If you are using the newer version of VRCFaceTracking (that runs on .NET 7), then try out [Mitchell Taylor's Implementation](https://github.com/regzo2/PicoStreamingAssistantFTUDP/tree/vrcfacetracking-module).
+
 ### Setup
 
 1. (TBA by PICO) Download and install the latest Streaming Assistant for PICO
