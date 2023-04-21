@@ -12,9 +12,8 @@ namespace PicoVRCFTModule;
 public static class TrackingData
 {
     private const float EyeCloseThreshold = 0.25f;
-    private const float EyeWidenThreshold = 0.98f;
-
-    private static int logCounter = 0;
+    private const float EyeWidenThreshold = 0.3f;
+    private const float EyeHyperWidenThreshold = 0.5f;
 
     private static float Ape(float jawOpen, float mouthClose) =>
         (0.05f + jawOpen) * (0.05f + mouthClose) * (0.05f + mouthClose);
@@ -48,25 +47,28 @@ public static class TrackingData
     private static float Clamp(float input, float lowerBound, float upperBound) =>
         Math.Min(Math.Max(lowerBound, input), upperBound);
 
-    private static void UpdateEye(ref Eye eye, float openness)
+    private static void UpdateEye(ref Eye eye, float openness, float widenFactor)
     {
-        switch (openness)
+        if (openness <= EyeCloseThreshold)
         {
-            case >= EyeWidenThreshold:
+            eye.Openness = 0.0f;
+            eye.Squeeze = (openness / -EyeCloseThreshold) + 1;
+            eye.Widen = 0;
+        }
+        else
+        {
+            if (widenFactor >= EyeWidenThreshold)
+            {
                 eye.Openness = 1.0f;
                 eye.Squeeze = 0;
                 eye.Widen = (openness - EyeWidenThreshold) / (1 - EyeWidenThreshold);
-                break;
-            case <= EyeCloseThreshold:
-                eye.Openness = 0.0f;
-                eye.Squeeze = (openness / -EyeCloseThreshold) + 1;
-                eye.Widen = 0;
-                break;
-            default:
+            }
+            else
+            {
                 eye.Openness = openness;
                 eye.Squeeze = 0;
                 eye.Widen = 0;
-                break;
+            }
         }
     }
 
@@ -91,19 +93,25 @@ public static class TrackingData
         var rightOpenness = EyeOpenness(external[PicoBlendShapeWeight.EyeBlinkRight],
             external[PicoBlendShapeWeight.EyeSquintRight]);
         var averageOpenness = Clamp((leftOpenness + rightOpenness) / 2, 0, 1.0f);
+        var leftWiden = external[PicoBlendShapeWeight.EyeWideLeft];
+        var rightWiden = external[PicoBlendShapeWeight.EyeWideRight];
+        var averageWiden = Clamp((leftWiden + rightWiden) / 2, 0, 1.0f);
 
         data.Left.Look = new Vector2(leftYaw, leftPitch);
         data.Right.Look = new Vector2(rightYaw, rightPitch);
         data.Combined.Look = new Vector2(averageYaw, averagePitch);
 
-        UpdateEye(ref data.Left, leftOpenness);
-        UpdateEye(ref data.Right, rightOpenness);
-        UpdateEye(ref data.Combined, averageOpenness);
+        UpdateEye(ref data.Left, leftOpenness, leftWiden);
+        UpdateEye(ref data.Right, rightOpenness, rightWiden);
+        UpdateEye(ref data.Combined, averageOpenness, averageWiden);
 
-        if (++logCounter < 10) return;
-
-        Logger.Msg($"Lo={leftOpenness},Ro={rightOpenness},Vo={averageOpenness}");
-        logCounter = 0;
+        // XXX: maybe, linear interpolation?
+        data.EyesDilation = averageWiden switch
+        {
+            >= EyeHyperWidenThreshold => 0.2f,
+            >= EyeWidenThreshold => 0.4f,
+            _ => 0.6f
+        };
     }
 
     public static void Update(ref LipTrackingData data, PicoFaceTrackingDatagram external)
@@ -114,10 +122,7 @@ public static class TrackingData
             {LipShape_v2.JawRight, external[PicoBlendShapeWeight.JawRight]},
             {LipShape_v2.JawOpen, external[PicoBlendShapeWeight.JawOpen]},
             {LipShape_v2.JawForward, external[PicoBlendShapeWeight.JawForward]},
-            {
-                LipShape_v2.MouthApeShape,
-                Ape(external[PicoBlendShapeWeight.JawOpen], external[PicoBlendShapeWeight.MouthClose])
-            },
+            {LipShape_v2.MouthApeShape, 0.0f},
             {LipShape_v2.MouthUpperLeft, external[PicoBlendShapeWeight.MouthUpperUpLeft]},
             {LipShape_v2.MouthUpperRight, external[PicoBlendShapeWeight.MouthUpperUpRight]},
             {LipShape_v2.MouthLowerLeft, external[PicoBlendShapeWeight.MouthLowerDownLeft]},
